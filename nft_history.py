@@ -4,17 +4,51 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import datetime
+import sys
+import csv
 
-st.title('Generative NFT Collection History')
+# Define the multipage class to manage the multiple apps in our program 
+class MultiPage: 
+    """Framework for combining multiple streamlit applications."""
 
-df = pd.DataFrame({
-  'Title': ["Etheria","Curio Cards","CryptoPunks","Mooncats","CryptoKitties","CryptoArte","Autoglyphs","Avastars Gen 1","Art Blocks Curated","Bored Ape Yacht Club","thedudes","Fluf World","Generativemasks","Audioglyphs","HeavenComputer","PixelGlyphs","Deafbeef","Eulerbeats"],
-  'Generative?': ["❌","❌","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅","✅"],
-  'Generated on chain?': ["❌","❌","❌","✅","❌","❌","✅","✅","✅","❌","✅","❌","✅","✅","✅","✅","✅","✅"],
-  'Category': ["Game","Art","PFP","Collectible","Game","Art","Art","PFP","Art","PFP","PFP","PFP","Art","Art","Art","PFP","Art","Art"],
-  'File type': ["Game","Image","Image","Image","Image","Image","Image","Image","Image","Image","Interactive","Video","Dynamic image","Music","Video","Image","Music","Music"],
-  'Date': ["October 31, 2015","May 9, 2017","June 23, 2017","August 9, 2017","November 28, 2017","June 11, 2018","April 26, 2019","February 7, 2020","November 27, 2020","April 30, 2021","July 28, 2021","August 7, 2021","August 16, 2021","August 17, 2021","August 18, 2021","July 22, 2021","March 26, 2021","February 15, 2021"]
-})
+    def __init__(self) -> None:
+        """Constructor class to generate a list which will store all our applications as an instance variable."""
+        self.pages = []
+    
+    def add_page(self, title, func) -> None: 
+        """Class Method to Add pages to the project
+        Args:
+            title ([str]): The title of page which we are adding to the list of apps 
+            
+            func: Python function to render this page in Streamlit
+        """
+
+        self.pages.append({
+          
+                "title": title, 
+                "function": func
+            })
+
+    def run(self):
+        # Drodown to select the page to run  
+        page = st.sidebar.selectbox(
+            'App Navigation', 
+            self.pages, 
+            format_func=lambda page: page['title']
+        )
+
+        # run the app function 
+        page['function']()
+
+
+st.title('NFT Collection History')
+
+#columns = 'Title','Generative?','Generated on chain?','Category','File type','Detail','Date'
+#entry1 = "Etheria","Manual",""
+
+df = pd.read_csv('nfts.csv')
+df = df.replace(np.nan, '', regex=True)
+
 onoff_options = ["","Off-chain","On-chain"]
 gen_options = ["","Manual","Generative"]
 cat_options = list(set(df['Category']))
@@ -23,61 +57,87 @@ cat_options.sort()
 type_options = list(set(df['File type']))
 type_options.append("")
 type_options.sort()
+detail_options = list(set(df['Detail']))
+detail_options.append("")
+detail_options.sort()
 
+df['timestamp'] = pd.to_datetime(df['Date'], format='%B %d, %Y')
+df = df.sort_values(by=['timestamp'])
 df2 = df
-df2['timestamp'] = pd.to_datetime(df2['Date'], format='%B %d, %Y')
 
-#Generative or manual production
-gen = st.sidebar.selectbox(
-    'Generative or manually produced?',
-     gen_options)
+class ParameterError(Exception):
+    pass
 
-if gen == "Manual":
-  df2 = df2[df2["Generative?"] == "❌"]
-  onoff_options = ["","Off-chain"]
-elif gen == "Generative":
-  df2 = df2[df2["Generative?"] == "✅"]
+try:
+  #Generative or manual production
+  gen = st.sidebar.selectbox(
+      'Generative or manually produced?',
+       gen_options)
 
-#Generated on or off chain
-onoff = st.sidebar.selectbox(
-    'Generated on-chain or off-chain?',
-     onoff_options)
+  if gen == "Manual":
+    df2 = df2[df2["Generative?"] == False]
+    onoff_options = ["","Off-chain"]
+  elif gen == "Generative":
+    df2 = df2[df2["Generative?"] == True]
 
-if onoff == "On-chain":
-  df2 = df2[df2["Generated on chain?"] == "✅"]
-elif onoff == "Off-chain":
-  df2 = df2[df2["Generated on chain?"] == "❌"]
+  #Generated on or off chain
+  onoff = st.sidebar.selectbox(
+      'Generated on-chain or off-chain?',
+       onoff_options)
 
-#Category
-cat = st.sidebar.selectbox(
-    'Category',
-     cat_options)
-if cat != "":
-  df2 = df2[df2["Category"] == cat]
+  if onoff == "On-chain":
+    df2 = df2[df2["Generated on chain?"] == True]
+  elif onoff == "Off-chain":
+    df2 = df2[df2["Generated on chain?"] == False]
 
-#Type
-filetype = st.sidebar.selectbox(
-    'Type',
-     type_options)
-if filetype != "":
-  df2 = df2[df2["File type"] == filetype]
+  #Category
+  cat = st.sidebar.selectbox(
+      'Category',
+       cat_options)
+  if cat != "":
+    df2 = df2[df2["Category"] == cat]
 
-df2 = df2.sort_values(by=['timestamp'])
+  #Type
+  filetype = st.sidebar.selectbox(
+      'Type',
+       type_options)
+  if filetype != "":
+    df2 = df2[df2["File type"] == filetype]
 
-if onoff=="On-chain": onoff_gen = "on-chain generated"
-elif onoff=="Off-chain": onoff_gen = "off-chain generated"
-elif gen=="Manual": onoff_gen = "manually created"
-else: onoff_gen = onoff.lower() + " " + gen.lower()
+  #Details
+  #details = st.sidebar.selectbox(
+  #    'Details',
+  #     detail_options)
+  #if details != "":
+  #  df2 = df2[df2["Detail"] == details]
 
-if filetype=="Interactive": cat_type = "interactive " + cat.lower()
-elif filetype=="": cat_type = cat.lower()
-else: cat_type = filetype.lower() + " based " + cat.lower()
+  df2 = df2.sort_values(by=['timestamp'])
 
+  if onoff=="On-chain": onoff_gen = "on-chain generated"
+  elif onoff=="Off-chain": onoff_gen = "off-chain generated"
+  elif gen=="Manual": onoff_gen = "manually created"
+  else: onoff_gen = onoff.lower() + " " + gen.lower()
 
-'First ', onoff_gen, cat_type, ' NFT collection on Ethereum network is ', df2['Title'].iloc[0]
+  if filetype=="Interactive": cat_type = "interactive " + cat.lower()
+  elif filetype=="": cat_type = cat.lower()
+  else: cat_type = filetype.lower() + " based " + cat.lower()
 
-left_column, right_column = st.columns(2)
+  'First ', onoff_gen, cat_type, ' NFT collection on Ethereum network is ', df2['Title'].iloc[0]
 
-if st.checkbox('Show the full list'):
-    df
+  left_column, right_column = st.columns(2)
 
+#  if st.checkbox('Show the full list'):
+#      df
+except:
+  raise ParameterError("There are no NFTs matching all of these parameters")
+sys.tracebacklimit = 0
+
+st.text("")
+st.text("")
+st.text("")
+st.text("")
+
+expander = st.expander("Roadmap")
+expander.write("- Second, third projects in NFT history")
+expander.write("- A floor tracker method that's more reliable than what you've seen before. The method is already built, I'm working on API setup")
+expander.write("- Data science approach to art: What makes an art piece more iconic?")
